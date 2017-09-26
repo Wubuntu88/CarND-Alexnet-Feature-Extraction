@@ -41,33 +41,36 @@ fc8_logits = tf.nn.xw_plus_b(x=fc7, weights=fc8W, biases=fc8b)
 # TODO: Define loss, training, accuracy operations.
 # HINT: Look back at your traffic signs project solution, you may
 # be able to reuse some the code.
-cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=fc8_logits, labels=labels_placeholder)
+cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=fc8_logits, labels=labels_placeholder)
 loss_operation = tf.reduce_mean(cross_entropy)
 optimizer = tf.train.AdamOptimizer(learning_rate=.001)
 training_operation = optimizer.minimize(loss_operation)
 
 preds = tf.arg_max(fc8_logits, 1)
 
-accuracy_op = tf.reduce_mean(tf.cast(tf.equal(preds, labels_placeholder), tf.float32))
+accuracy_operation = tf.reduce_mean(tf.cast(tf.equal(preds, labels_placeholder), tf.float32))
 
 init = tf.global_variables_initializer()
 
 # TODO: Train and evaluate the feature extraction model.
 
-def evaluate(X_data, y_data, the_session):
-    num_examples = len(X_data)
+
+def evaluate(x_data, y_data, the_session):
+    num_examples = x_data.shape[0]
     total_accuracy = 0
     total_loss = 0
-    for offset in range(0, num_examples, BATCH_SIZE):
-        batch_x, batch_y = X_data[offset:offset+BATCH_SIZE], y_data[offset:offset+BATCH_SIZE]
-        accuracy, loss = the_session.run([accuracy_op, loss_operation],
-                                             feed_dict={
+    for the_offset in range(0, num_examples, BATCH_SIZE):
+        the_end = the_offset+BATCH_SIZE
+        batch_x = x_data[the_offset:the_end]
+        batch_y = y_data[the_offset:the_end]
+        loss, accuracy = the_session.run([loss_operation, accuracy_operation],
+                                         feed_dict={
                                                  original_features_placeholder: batch_x,
                                                  labels_placeholder: batch_y
                                              }
                                          )
-        total_accuracy += (accuracy * len(batch_x))
-        total_loss += (loss * len(batch_x))
+        total_accuracy += (accuracy * batch_x.shape[0])
+        total_loss += (loss * batch_x.shape[0])
     return total_accuracy / num_examples, total_loss / num_examples
 
 with tf.Session() as sess:
@@ -76,17 +79,17 @@ with tf.Session() as sess:
     train_length = x_train.shape[0]
 
     for i in range(N_EPOCHS):
-        x_train, x_test = shuffle(x_train, y_train)
+        x_train, y_train = shuffle(x_train, y_train)
         le_time = time.time()
         for offset in range(0, train_length, BATCH_SIZE):
             end = offset + BATCH_SIZE
-            print(y_train[offset:end].shape)
             sess.run(fetches=training_operation,
                      feed_dict={
                          original_features_placeholder: x_train[offset:end],
                          labels_placeholder: y_train[offset:end]
                      })
-        validation_accuracy, validation_loss = evaluate(X_data=x_test, y_data=y_train, the_session=sess)
+            print("Epoch: ", i, ", ", offset / train_length, "%")
+        validation_accuracy, validation_loss = evaluate(x_data=x_test, y_data=y_test, the_session=sess)
         print("Epoch", i + 1)
         print("Time: %.3f seconds" % (time.time() - le_time))
         print("Validation Loss =", validation_accuracy)
